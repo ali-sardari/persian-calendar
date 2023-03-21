@@ -54,10 +54,8 @@ import com.byagowi.persiancalendar.databinding.NavigationHeaderBinding
 import com.byagowi.persiancalendar.entities.CalendarType
 import com.byagowi.persiancalendar.entities.Jdn
 import com.byagowi.persiancalendar.entities.Language
-import com.byagowi.persiancalendar.entities.Season
 import com.byagowi.persiancalendar.entities.Theme
 import com.byagowi.persiancalendar.global.configureCalendarsAndLoadEvents
-import com.byagowi.persiancalendar.global.coordinates
 import com.byagowi.persiancalendar.global.enableNewInterface
 import com.byagowi.persiancalendar.global.initGlobal
 import com.byagowi.persiancalendar.global.isIranHolidaysEnabled
@@ -177,12 +175,9 @@ class MainActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferenceCh
             ) != PackageManager.PERMISSION_GRANTED
         ) askForCalendarPermission()
 
-        val persian = creationDateJdn.toPersianCalendar()
-        run {
-            val header = NavigationHeaderBinding.bind(binding.navigation.getHeaderView(0))
-            val season = Season.fromPersianCalendar(persian, coordinates)
-            header.seasonImage.setImageResource(season.imageId)
-            header.seasonImage.contentDescription = getString(season.nameStringId)
+        NavigationHeaderBinding.bind(binding.navigation.getHeaderView(0)).seasonsPager.also {
+            it.adapter = SeasonsAdapter()
+            it.currentItem = SeasonsAdapter.getCurrentIndex() - 3
         }
 
         if (!appPrefs.getBoolean(CHANGE_LANGUAGE_IS_PROMOTED_ONCE, false)) {
@@ -191,7 +186,7 @@ class MainActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferenceCh
         }
 
         if (mainCalendar == CalendarType.SHAMSI && isIranHolidaysEnabled &&
-            persian.year > supportedYearOfIranCalendar
+            creationDateJdn.toPersianCalendar().year > supportedYearOfIranCalendar
         ) showAppIsOutDatedSnackbar()
 
         applyAppLanguage(this)
@@ -445,6 +440,9 @@ class MainActivity : AppCompatActivity(), SharedPreferences.OnSharedPreferenceCh
         override fun onDrawerOpened(drawerView: View) {
             super.onDrawerOpened(drawerView)
             onBackPressedCloseDrawerCallback.isEnabled = true
+
+            NavigationHeaderBinding.bind(binding.navigation.getHeaderView(0))
+                .seasonsPager.setCurrentItem(SeasonsAdapter.getCurrentIndex(), true)
         }
 
         override fun onDrawerClosed(drawerView: View) {

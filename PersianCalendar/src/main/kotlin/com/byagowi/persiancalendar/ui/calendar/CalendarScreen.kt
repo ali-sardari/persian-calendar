@@ -155,7 +155,7 @@ class CalendarScreen : Fragment(R.layout.fragment_calendar) {
 
     private fun enableOwghatTab(context: Context): Boolean {
         val appPrefs = context.appPrefs
-        return coordinates != null || // if coordinates is set, should be shown
+        return coordinates.value != null || // if coordinates is set, should be shown
                 (language.isPersian && // The placeholder isn't translated to other languages
                         // The user is already dismissed the third tab
                         !appPrefs.getBoolean(PREF_DISABLE_OWGHAT, false) &&
@@ -175,7 +175,7 @@ class CalendarScreen : Fragment(R.layout.fragment_calendar) {
     }
 
     private fun createOwghatTab(inflater: LayoutInflater, container: ViewGroup?): View {
-        coordinates ?: return createOwghatTabPlaceholder(inflater, container)
+        coordinates.value ?: return createOwghatTabPlaceholder(inflater, container)
         val binding = OwghatTabContentBinding.inflate(inflater, container, false)
 
         var isExpanded = false
@@ -535,7 +535,7 @@ class CalendarScreen : Fragment(R.layout.fragment_calendar) {
     }
 
     private fun setOwghat(owghatBinding: OwghatTabContentBinding, jdn: Jdn, isToday: Boolean) {
-        val coordinates = coordinates ?: return
+        val coordinates = coordinates.value ?: return
 
         val date = jdn.toJavaCalendar()
         val prayTimes = coordinates.calculatePrayTimes(date)
@@ -645,7 +645,7 @@ class CalendarScreen : Fragment(R.layout.fragment_calendar) {
                 showMonthOverviewDialog(activity ?: return@onClick, viewModel.selectedMonth.value)
             }
         }
-        if (coordinates != null) {
+        if (coordinates.value != null) {
             toolbar.menu.add(R.string.month_pray_times).also {
                 it.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
                 it.onClick {
@@ -680,7 +680,7 @@ class CalendarScreen : Fragment(R.layout.fragment_calendar) {
     }
 
     private fun createOwghatHtmlReport(date: AbstractDate): String = createHTML().html {
-        val coordinates = coordinates ?: return@html
+        val coordinates = coordinates.value ?: return@html
         attributes["lang"] = language.language
         attributes["dir"] = if (resources.isRtl) "rtl" else "ltr"
         head {

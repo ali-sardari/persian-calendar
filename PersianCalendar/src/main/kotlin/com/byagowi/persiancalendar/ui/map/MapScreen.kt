@@ -11,10 +11,12 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.navGraphViewModels
 import com.byagowi.persiancalendar.BuildConfig
 import com.byagowi.persiancalendar.PREF_LATITUDE
+import com.byagowi.persiancalendar.PREF_SHOW_QIBLA_IN_COMPASS
 import com.byagowi.persiancalendar.R
 import com.byagowi.persiancalendar.databinding.FragmentMapBinding
 import com.byagowi.persiancalendar.entities.Jdn
@@ -97,12 +99,12 @@ class MapScreen : Fragment(R.layout.fragment_map) {
 
         fun bringGps() = activity?.let { showGPSLocationDialog(it, viewLifecycleOwner) }.let { }
         directPathButton.onClick {
-            if (coordinates == null) bringGps() else viewModel.toggleDirectPathMode()
+            if (coordinates.value == null) bringGps() else viewModel.toggleDirectPathMode()
         }
         gridButton.onClick { viewModel.toggleDisplayGrid() }
         myLocationButton.onClick { bringGps() }
         locationButton.onClick {
-            if (coordinates == null) bringGps() else viewModel.toggleDisplayLocation()
+            if (coordinates.value == null) bringGps() else viewModel.toggleDisplayLocation()
         }
         mapTypeButton.onClick {
             if (viewModel.state.value.mapType == MapType.None) {
@@ -162,18 +164,25 @@ class MapScreen : Fragment(R.layout.fragment_map) {
         binding.map.contentHeight = mapDraw.mapHeight.toFloat()
         binding.map.maxScale = 512f
 
+        val showKaaba =
+            binding.root.context.appPrefs.getBoolean(PREF_SHOW_QIBLA_IN_COMPASS, true)
+
+        fun onStateUpdate(state: MapState) {
+            mapDraw.drawKaaba = coordinates.value != null && state.displayLocation && showKaaba
+            mapDraw.updateMap(state.time, state.mapType)
+            binding.map.invalidate()
+            binding.date.text = mapDraw.maskFormattedTime
+            binding.timeBar.isVisible = mapDraw.maskFormattedTime.isNotEmpty()
+            directPathButton.icon?.alpha = if (state.isDirectPathMode) 127 else 255
+        }
+
         // Setup view model change listener
         // https://developer.android.com/topic/libraries/architecture/coroutines#lifecycle-aware
         viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.state
-                .flowWithLifecycle(viewLifecycleOwner.lifecycle, Lifecycle.State.STARTED)
-                .collectLatest { state ->
-                    mapDraw.updateMap(state.time, state.mapType)
-                    binding.map.invalidate()
-                    binding.date.text = mapDraw.maskFormattedTime
-                    binding.timeBar.isVisible = mapDraw.maskFormattedTime.isNotEmpty()
-                    directPathButton.icon?.alpha = if (state.isDirectPathMode) 127 else 255
-                }
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch { viewModel.state.collectLatest(::onStateUpdate) }
+                launch { coordinates.collectLatest { onStateUpdate(viewModel.state.value) } }
+            }
         }
     }
 }

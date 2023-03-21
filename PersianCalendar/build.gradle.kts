@@ -12,8 +12,8 @@ plugins {
 }
 
 // https://developer.android.com/jetpack/androidx/releases/compose-kotlin
-val composeCompilerVersion = "1.3.2"
-val composeVersion = "1.2.1"
+val composeCompilerVersion = "1.4.3"
+val composeVersion = "1.3.3"
 
 val isMinApi21Build = gradle.startParameter.taskNames.any { "minApi21" in it || "MinApi21" in it }
 
@@ -24,7 +24,7 @@ android {
     }
 
     compileSdk = 33
-    buildToolsVersion = "33.0.1"
+    buildToolsVersion = "33.0.2"
 
     buildFeatures {
         viewBinding = true
@@ -38,8 +38,8 @@ android {
         applicationId = "com.byagowi.persiancalendar"
         minSdk = 17
         targetSdk = 33
-        versionCode = 780
-        versionName = "7.8.0"
+        versionCode = 790
+        versionName = "7.9.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         if (!isMinApi21Build) vectorDrawables.useSupportLibrary = true
         resourceConfigurations += listOf(
@@ -160,15 +160,15 @@ dependencies {
     implementation("com.github.persian-calendar:calculator:0827f0fbcad2ffa8559f05dcc82002f1dac1464b")
 
     // https://github.com/cosinekitty/astronomy/releases/tag/v2.1.0
-    implementation("com.github.cosinekitty:astronomy:v2.1.8")
+    implementation("com.github.cosinekitty:astronomy:v2.1.17")
 
-    implementation("androidx.appcompat:appcompat:1.6.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.preference:preference-ktx:1.2.0")
-    implementation("androidx.recyclerview:recyclerview:1.2.1")
+    implementation("androidx.recyclerview:recyclerview:1.3.0")
     implementation("androidx.cardview:cardview:1.0.0")
     implementation("androidx.viewpager2:viewpager2:1.0.0")
     implementation("androidx.dynamicanimation:dynamicanimation:1.0.0")
-    implementation("com.google.android.material:material:1.8.0")
+    implementation("com.google.android.material:material:1.9.0-beta01")
 
     val navVersion = "2.5.1"
     implementation("androidx.navigation:navigation-fragment-ktx:$navVersion")
@@ -180,11 +180,11 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:$fragmentVersion")
     debugImplementation("androidx.fragment:fragment-testing:$fragmentVersion")
     implementation("androidx.activity:activity-ktx:1.6.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.5.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.0")
 
-    implementation("androidx.browser:browser:1.4.0")
+    implementation("androidx.browser:browser:1.5.0")
 
-    implementation("androidx.work:work-runtime-ktx:2.7.1")
+    implementation("androidx.work:work-runtime-ktx:2.8.0")
 
     val coroutinesVersion = "1.6.4"
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutinesVersion")
@@ -198,12 +198,12 @@ dependencies {
     debugImplementation("androidx.multidex:multidex:2.0.1")
 
     minApi21Implementation("androidx.activity:activity-compose:1.6.1")
-    minApi21Implementation("com.google.android.material:compose-theme-adapter-3:1.1.1")
     val accompanistVersion = "0.28.0"
     minApi21Implementation("com.google.accompanist:accompanist-flowlayout:$accompanistVersion")
     minApi21Implementation("com.google.accompanist:accompanist-drawablepainter:$accompanistVersion")
+    minApi21Implementation("com.google.accompanist:accompanist-themeadapter-material3:$accompanistVersion")
     minApi21Implementation("androidx.compose.ui:ui:$composeVersion")
-    minApi21Implementation("androidx.compose.material3:material3:1.1.0-alpha04")
+    minApi21Implementation("androidx.compose.material3:material3:1.1.0-alpha08")
     minApi21Implementation("androidx.compose.ui:ui-tooling-preview:$composeVersion")
     if (isMinApi21Build) {
         implementation("androidx.compose.runtime:runtime:$composeVersion")
@@ -223,7 +223,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-params:$junit5Version")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junit5Version")
 
-    testImplementation("org.mockito:mockito-core:5.1.1")
+    testImplementation("org.mockito:mockito-core:5.2.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:4.1.0")
 
     testImplementation("com.google.truth:truth:1.1.3")

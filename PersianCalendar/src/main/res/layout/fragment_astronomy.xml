@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/colorCard">
@@ -115,6 +116,20 @@
                     app:itemIconSize="20dp"
                     app:labelVisibilityMode="unlabeled"
                     app:menuGravity="center" />
+
+                <TextView
+                    android:id="@+id/map_icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end|center_vertical"
+                    android:layout_marginEnd="8dp"
+                    android:layout_marginBottom="3dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/map"
+                    android:text="🗺"
+                    android:textSize="22dp"
+                    android:tooltipText="@string/map"
+                    tools:ignore="HardcodedText,SpUsage,UnusedAttribute" />
 
             </FrameLayout>
 
