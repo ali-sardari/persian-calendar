@@ -20,7 +20,16 @@
         android:layout_marginLeft="1dp"
         android:layout_marginRight="1dp"
         android:gravity="center"
+        android:layoutDirection="ltr"
         android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="IRAN (+3:30)"
+            android:textColor="#C3FFFFFF"
+            android:textSize="10sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -28,7 +37,7 @@
             android:layout_gravity="center"
             android:gravity="center"
             android:orientation="horizontal"
-            android:paddingTop="4dp"
+            android:paddingTop="0dp"
             android:paddingBottom="4dp">
 
             <TextClock
@@ -41,14 +50,15 @@
                 android:gravity="end|center_vertical"
                 android:maxLines="1"
                 android:textAlignment="viewEnd"
-                android:textSize="48sp" />
+                android:textSize="36sp"
+                android:textStyle="bold" />
 
             <FrameLayout
                 android:layout_width="1dp"
                 android:layout_height="match_parent"
                 android:layout_gravity="center"
                 android:layout_margin="8dp"
-                android:background="@color/widget_divider" />
+                android:background="@drawable/my_divider_widget" />
 
             <TextView
                 android:id="@+id/textPlaceholder1_4x2"
@@ -60,7 +70,8 @@
                 android:lineSpacingExtra="1dp"
                 android:minLines="4"
                 android:text=""
-                android:textSize="13sp" />
+                android:textSize="15sp"
+                android:textStyle="bold" />
 
         </LinearLayout>
 
@@ -68,7 +79,8 @@
             android:id="@+id/refresh_wrapper"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:visibility="invisible">
 
             <include layout="@layout/widget4x2_owghat_layout" />
 

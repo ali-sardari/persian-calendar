@@ -47,8 +47,13 @@ fun formatNumber(number: Double): String {
     return formatNumber(number.toString()).replace(".", "٫") // U+066B, Arabic Decimal Separator
 }
 
-fun formatNumber(number: Int, digits: CharArray = preferredDigits): String =
-    formatNumber(number.toString(), digits)
+//fun formatNumber(number: Int, digits: CharArray = preferredDigits): String =
+//    formatNumber(number.toString(), digits)
+
+fun formatNumber(number: Int, digits: CharArray = preferredDigits): String {
+    val num = if (number < 10) "0%s".format(number) else number.toString()
+    return formatNumber(num, digits)
+}
 
 fun formatNumber(number: String, digits: CharArray = preferredDigits): String {
     if (isArabicDigitSelected) return number

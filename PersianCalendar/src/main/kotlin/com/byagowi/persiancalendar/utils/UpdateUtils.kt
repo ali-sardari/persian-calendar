@@ -144,8 +144,9 @@ fun update(context: Context, updateDate: Boolean) {
     }
 
     val shiftWorkTitle = getShiftWorkTitle(jdn, false)
-    val title = dayTitleSummary(jdn, date) +
-            if (shiftWorkTitle.isEmpty()) "" else " ($shiftWorkTitle)"
+//    val title = dayTitleSummary(jdn, date) +
+//            if (shiftWorkTitle.isEmpty()) "" else " ($shiftWorkTitle)"
+    val title = dayTitleSummary(jdn, date)
     val widgetTitle = dayTitleSummary(
         jdn, date, calendarNameInLinear = OTHER_CALENDARS_KEY in whatToShowOnWidgets
     ) + if (shiftWorkTitle.isEmpty()) "" else " ($shiftWorkTitle)"
@@ -554,7 +555,7 @@ private fun create4x2RemoteViews(
 
     if (!enableClock) remoteViews.setTextViewText(R.id.textPlaceholder0_4x2, weekDayName)
     remoteViews.setTextViewText(R.id.textPlaceholder1_4x2, buildString {
-        if (enableClock) append(jdn.dayOfWeekName + "\n")
+//        if (enableClock) append(jdn.dayOfWeekName + "\n")
         append(formatDate(date, calendarNameInLinear = showOtherCalendars))
         if (showOtherCalendars) appendLine().append(dateStringOfOtherCalendars(jdn, "\n"))
     })
@@ -685,19 +686,21 @@ private fun updateNotification(
             else
                 NotificationCompat.VISIBILITY_SECRET
         )
-        .setContentTitle(toPrepend + title)
-        .setContentText(
-            when {
-                isTalkBackEnabled -> getA11yDaySummary(
-                    context = context, jdn = jdn,
-                    isToday = false, // Don't set isToday, per a feedback
-                    deviceCalendarEvents = deviceCalendarEvents, withZodiac = true,
-                    withOtherCalendars = true, withTitle = false
-                ) + if (owghat.isEmpty()) "" else spacedComma + owghat
-                subtitle.isEmpty() -> subtitle
-                else -> toPrepend + subtitle
-            }
-        )
+        .setContentTitle(title)
+//        .setContentTitle(toPrepend + title)
+//        .setContentText(
+//             subtitle
+////            when {
+////                isTalkBackEnabled -> getA11yDaySummary(
+////                    context = context, jdn = jdn,
+////                    isToday = false, // Don't set isToday, per a feedback
+////                    deviceCalendarEvents = deviceCalendarEvents, withZodiac = true,
+////                    withOtherCalendars = true, withTitle = false
+////                ) + if (owghat.isEmpty()) "" else spacedComma + owghat
+////                subtitle.isEmpty() -> subtitle
+////                else -> toPrepend + subtitle
+////            }
+//        )
 
     // Dynamic small icon generator, most of the times disabled as it needs API 23 and
     // we need to have the other path anyway

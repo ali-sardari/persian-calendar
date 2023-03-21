@@ -51,7 +51,7 @@ fun revertWeekStartOffsetFromWeekDay(dayOfWeek: Int): Int = (dayOfWeek + weekSta
 fun getWeekDayName(position: Int) = weekDays[position % 7]
 
 fun dayTitleSummary(jdn: Jdn, date: AbstractDate, calendarNameInLinear: Boolean = true): String =
-    jdn.dayOfWeekName + spacedComma + formatDate(date, calendarNameInLinear)
+    /*jdn.dayOfWeekName + spacedComma +*/ formatDate(date, calendarNameInLinear)
 
 fun getInitialOfWeekDay(position: Int) = weekDaysInitials[position % 7]
 
@@ -265,7 +265,7 @@ fun calculateDaysDifference(
 fun formatDate(
     date: AbstractDate, calendarNameInLinear: Boolean = true, forceNonNumerical: Boolean = false
 ): String = if (numericalDatePreferred && !forceNonNumerical)
-    (date.toLinearDate() + if (calendarNameInLinear) (" " + getCalendarNameAbbr(date)) else "").trim()
+    (date.toLinearDate() /*+ if (calendarNameInLinear) (" " + getCalendarNameAbbr(date)) else ""*/).trim()
 else language.dmy.format(formatNumber(date.dayOfMonth), date.monthName, formatNumber(date.year))
 
 fun AbstractDate.toLinearDate(digits: CharArray = preferredDigits) = "%s/%s/%s".format(
