@@ -7,13 +7,14 @@ import android.graphics.PointF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
-import android.view.VelocityTracker
 import android.view.View
 import androidx.dynamicanimation.animation.FlingAnimation
 import androidx.dynamicanimation.animation.FloatValueHolder
+import com.byagowi.persiancalendar.ui.utils.createFlingDetector
 import kotlin.math.absoluteValue
 import kotlin.math.min
 import kotlin.math.roundToInt
+
 
 // Based on https://stackoverflow.com/a/17649895 but modified to draw itself instead
 open class ZoomableView(context: Context, attrs: AttributeSet? = null) : View(context, attrs) {
@@ -61,14 +62,12 @@ open class ZoomableView(context: Context, attrs: AttributeSet? = null) : View(co
                     viewMatrix.getValues(matrix)
                     val x = matrix[Matrix.MTRANS_X]
                     val y = matrix[Matrix.MTRANS_Y]
-                    if (scaleFactor < 1) {
-                        if ((originalWidth * currentScale).roundToInt() < width) {
-                            if (y < -bottom) viewMatrix.postTranslate(0f, -(y + bottom))
-                            else if (y > 0) viewMatrix.postTranslate(0f, -y)
-                        } else {
-                            if (x < -right) viewMatrix.postTranslate(-(x + right), 0f)
-                            else if (x > 0) viewMatrix.postTranslate(-x, 0f)
-                        }
+                    if ((originalWidth * currentScale).roundToInt() < width) {
+                        if (y < -bottom) viewMatrix.postTranslate(0f, -(y + bottom))
+                        else if (y > 0) viewMatrix.postTranslate(0f, -y)
+                    } else {
+                        if (x < -right) viewMatrix.postTranslate(-(x + right), 0f)
+                        else if (x > 0) viewMatrix.postTranslate(-x, 0f)
                     }
                 }
             } else {
@@ -112,7 +111,6 @@ open class ZoomableView(context: Context, attrs: AttributeSet? = null) : View(co
 
     var onClick = fun(_: Float, _: Float) {}
 
-    private var velocityTracker: VelocityTracker? = null
     private val horizontalFling = FlingAnimation(FloatValueHolder())
     private val verticalFling = FlingAnimation(FloatValueHolder())
 
@@ -125,6 +123,12 @@ open class ZoomableView(context: Context, attrs: AttributeSet? = null) : View(co
             applyVelocity(0f, velocity / currentScale / 5)
             invalidate()
         }
+    }
+
+    private val flingDetector = createFlingDetector(context) { velocityX, velocityY ->
+        horizontalFling.setStartVelocity(velocityX).start()
+        verticalFling.setStartVelocity(velocityY).start()
+        true
     }
 
     private fun applyVelocity(deltaX: Float, deltaY: Float) {
@@ -162,29 +166,30 @@ open class ZoomableView(context: Context, attrs: AttributeSet? = null) : View(co
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         scaleDetector.onTouchEvent(event)
+        flingDetector.onTouchEvent(event)
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
+                horizontalFling.cancel()
+                verticalFling.cancel()
                 last.set(event.x, event.y)
                 start.set(last)
                 mode = DRAG
-
-                velocityTracker = VelocityTracker.obtain()
-                horizontalFling.cancel()
-                verticalFling.cancel()
             }
+
             MotionEvent.ACTION_POINTER_DOWN -> {
                 last.set(event.x, event.y)
                 start.set(last)
                 mode = ZOOM
             }
+
             MotionEvent.ACTION_MOVE -> // if the mode is ZOOM or
                 // if the mode is DRAG and already zoomed
                 if (mode == ZOOM || mode == DRAG && currentScale > minScale) {
                     applyVelocity(event.x - last.x, event.y - last.y)
                     last.set(event.x, event.y)
-                    velocityTracker?.addMovement(event)
                     invalidate()
                 }
+
             MotionEvent.ACTION_UP -> {
                 mode = NONE
                 if ((event.x - start.x).absoluteValue < 5 && (event.y - start.y).absoluteValue < 5) {
@@ -196,13 +201,8 @@ open class ZoomableView(context: Context, attrs: AttributeSet? = null) : View(co
                     inverse.mapPoints(touchPoint)
                     onClick(touchPoint[0], touchPoint[1])
                 }
-
-                velocityTracker?.computeCurrentVelocity(1000)
-                horizontalFling.setStartVelocity(velocityTracker?.xVelocity ?: 0f).start()
-                verticalFling.setStartVelocity(velocityTracker?.yVelocity ?: 0f).start()
-                velocityTracker?.recycle()
-                velocityTracker = null
             }
+
             MotionEvent.ACTION_POINTER_UP -> mode = NONE
         }
         invalidate()

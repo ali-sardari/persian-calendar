@@ -6,12 +6,13 @@ import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import com.byagowi.persiancalendar.entities.Theme
 import com.byagowi.persiancalendar.ui.athan.PatternDrawable
+import com.byagowi.persiancalendar.ui.utils.dp
 import com.byagowi.persiancalendar.utils.logException
 import com.google.android.material.color.DynamicColors
 
 class PersianCalendarWallpaperService : WallpaperService() {
     override fun onCreateEngine() = object : Engine() {
-        private var patternDrawable = PatternDrawable()
+        private var patternDrawable = PatternDrawable(dp = resources.dp)
         private val drawRunner = Runnable { draw() }
         private val handler = Handler(Looper.getMainLooper()).also { it.post(drawRunner) }
         private var visible = true
@@ -20,12 +21,13 @@ class PersianCalendarWallpaperService : WallpaperService() {
             val context = this@PersianCalendarWallpaperService
             val isNightMode = Theme.isNightMode(context)
             val accentColor = if (DynamicColors.isDynamicColorAvailable()) context.getColor(
-                if (isNightMode) android.R.color.system_accent1_200
-                else android.R.color.system_accent1_400
+                if (isNightMode) android.R.color.system_accent1_500
+                else android.R.color.system_accent1_300
             ) else null
             patternDrawable = PatternDrawable(
                 preferredTintColor = accentColor,
-                darkBaseColor = Theme.isNightMode(context)
+                darkBaseColor = true, // launcher always has white text so let's make it always dark, for now
+                dp = resources.dp
             )
             this.visible = visible
             if (visible) handler.post(drawRunner)

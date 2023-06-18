@@ -5,7 +5,7 @@ import io.github.persiancalendar.calendar.CivilDate
 import io.github.persiancalendar.calendar.IslamicDate
 import io.github.persiancalendar.calendar.NepaliDate
 import io.github.persiancalendar.calendar.PersianDate
-import java.util.*
+import java.util.Date
 
 sealed class CalendarEvent<T : AbstractDate>(
     val title: String, val isHoliday: Boolean, val date: T
@@ -26,4 +26,10 @@ sealed class CalendarEvent<T : AbstractDate>(
         date: CivilDate, title: String, isHoliday: Boolean, val id: Int, val description: String,
         val start: Date, val end: Date, val color: String
     ) : CalendarEvent<CivilDate>(title, isHoliday, date)
+
+    override fun equals(other: Any?): Boolean {
+        return other is CalendarEvent<*>
+                && other.title == title && other.isHoliday == isHoliday && other.date == date
+        // Let's don't get into details of device calendar
+    }
 }

@@ -1,6 +1,6 @@
 plugins {
     `kotlin-dsl`
-    val kotlinVersion = "1.8.10"
+    val kotlinVersion = "1.8.22"
     kotlin("jvm") version kotlinVersion
     kotlin("plugin.serialization") version kotlinVersion
 }
@@ -10,8 +10,8 @@ repositories {
 }
 
 dependencies {
-    implementation("com.squareup:kotlinpoet:1.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.0")
+    implementation("com.squareup:kotlinpoet:1.14.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
 }
 
 gradlePlugin {

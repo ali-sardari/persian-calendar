@@ -38,6 +38,7 @@ import com.byagowi.persiancalendar.PREF_ATHAN_VOLUME
 import com.byagowi.persiancalendar.R
 import com.byagowi.persiancalendar.entities.Clock
 import com.byagowi.persiancalendar.entities.Jdn
+import com.byagowi.persiancalendar.global.calculationMethod
 import com.byagowi.persiancalendar.global.coordinates
 import com.byagowi.persiancalendar.global.notificationAthan
 import com.byagowi.persiancalendar.service.AlarmWorker
@@ -46,7 +47,7 @@ import com.byagowi.persiancalendar.service.BroadcastReceivers
 import com.byagowi.persiancalendar.ui.athan.AthanActivity
 import com.byagowi.persiancalendar.variants.debugLog
 import io.github.persiancalendar.praytimes.PrayTimes
-import java.util.*
+import java.util.GregorianCalendar
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
@@ -84,34 +85,36 @@ fun startAthan(context: Context, prayTimeKey: String, intendedTime: Long?) {
     startAthanBody(context, prayTimeKey)
 }
 
-private fun startAthanBody(context: Context, prayTimeKey: String) = runCatching {
-    debugLog("Alarms: startAthanBody for $prayTimeKey")
-
+private fun startAthanBody(context: Context, prayTimeKey: String) {
     runCatching {
-        context.getSystemService<PowerManager>()?.newWakeLock(
-            PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.SCREEN_DIM_WAKE_LOCK,
-            "persiancalendar:alarm"
-        )?.acquire(THIRTY_SECONDS_IN_MILLIS)
-    }.onFailure(logException)
+        debugLog("Alarms: startAthanBody for $prayTimeKey")
 
-    if (notificationAthan) {
-        ContextCompat.startForegroundService(
-            context, Intent(context, AthanNotification::class.java)
-                .putExtra(KEY_EXTRA_PRAYER, prayTimeKey)
-        )
-    } else {
-        context.startActivity(
-            Intent(context, AthanActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                .putExtra(KEY_EXTRA_PRAYER, prayTimeKey)
-        )
-    }
-}.onFailure(logException).let {}
+        runCatching {
+            context.getSystemService<PowerManager>()?.newWakeLock(
+                PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.SCREEN_DIM_WAKE_LOCK,
+                "persiancalendar:alarm"
+            )?.acquire(THIRTY_SECONDS_IN_MILLIS)
+        }.onFailure(logException)
+
+        if (notificationAthan) {
+            ContextCompat.startForegroundService(
+                context, Intent(context, AthanNotification::class.java)
+                    .putExtra(KEY_EXTRA_PRAYER, prayTimeKey)
+            )
+        } else {
+            context.startActivity(
+                Intent(context, AthanActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    .putExtra(KEY_EXTRA_PRAYER, prayTimeKey)
+            )
+        }
+    }.onFailure(logException)
+}
 
 fun getEnabledAlarms(context: Context): Set<String> {
     if (coordinates.value == null) return emptySet()
     return (context.appPrefs.getString(PREF_ATHAN_ALARM, null)?.trim() ?: return emptySet())
-        .splitIgnoreEmpty(",")
+        .splitFilterNotEmpty(",")
         .toSet()
 }
 
@@ -121,18 +124,15 @@ fun scheduleAlarms(context: Context) {
         ((context.appPrefs.getString(PREF_ATHAN_GAP, null)?.toDoubleOrNull()
             ?: .0) * 60.0 * 1000.0).toLong()
 
-    val prayTimes = coordinates.value?.calculatePrayTimes(
-        // Don't override as maybe user intentionally have changed the clock
-        overrideIranDst = false
-    ) ?: return
+    val prayTimes = coordinates.value?.calculatePrayTimes() ?: return
     // convert spacedComma separated string to a set
     enabledAlarms.forEachIndexed { i, name ->
-        scheduleAlarm(context, name, Calendar.getInstance().also {
+        scheduleAlarm(context, name, GregorianCalendar().also {
             // if (name == ISHA_KEY) return@also it.add(Calendar.SECOND, 5)
             val alarmTime = prayTimes.getFromStringId(getPrayTimeName(name))
-            it[Calendar.HOUR_OF_DAY] = alarmTime.hours
-            it[Calendar.MINUTE] = alarmTime.minutes
-            it[Calendar.SECOND] = 0
+            it[GregorianCalendar.HOUR_OF_DAY] = alarmTime.hours
+            it[GregorianCalendar.MINUTE] = alarmTime.minutes
+            it[GregorianCalendar.SECOND] = 0
         }.timeInMillis - athanGap, i)
     }
 }
@@ -167,8 +167,10 @@ private fun scheduleAlarm(context: Context, alarmTimeName: String, timeInMillis:
     when {
         Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP_MR1 ->
             am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, timeInMillis, pendingIntent)
+
         Build.VERSION.SDK_INT > Build.VERSION_CODES.JELLY_BEAN_MR2 ->
             am.setExact(AlarmManager.RTC_WAKEUP, timeInMillis, pendingIntent)
+
         else -> am.set(AlarmManager.RTC_WAKEUP, timeInMillis, pendingIntent)
     }
 }
@@ -198,3 +200,12 @@ fun PrayTimes.getFromStringId(@StringRes stringId: Int) = Clock.fromHoursFractio
         else -> .0
     }
 )
+
+private val TIME_NAMES = listOf(
+    R.string.imsak, R.string.fajr, R.string.sunrise, R.string.dhuhr, R.string.asr,
+    R.string.sunset, R.string.maghrib, R.string.isha, R.string.midnight
+)
+
+fun getTimeNames(): List<Int> {
+    return if (calculationMethod.isJafari) TIME_NAMES else TIME_NAMES - R.string.sunset
+}

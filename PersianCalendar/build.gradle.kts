@@ -12,7 +12,7 @@ plugins {
 }
 
 // https://developer.android.com/jetpack/androidx/releases/compose-kotlin
-val composeCompilerVersion = "1.4.3"
+val composeCompilerVersion = "1.4.6"
 val composeVersion = "1.3.3"
 
 val isMinApi21Build = gradle.startParameter.taskNames.any { "minApi21" in it || "MinApi21" in it }
@@ -24,10 +24,12 @@ android {
     }
 
     compileSdk = 33
+    // compileSdkPreview = "UpsideDownCake"
     buildToolsVersion = "33.0.2"
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 
     val gitInfo = providers.of(io.github.persiancalendar.gradle.GitInfoValueSource::class) {}.get()
@@ -38,13 +40,14 @@ android {
         applicationId = "com.byagowi.persiancalendar"
         minSdk = 17
         targetSdk = 33
-        versionCode = 790
-        versionName = "7.9.0"
+        // targetSdkPreview = "UpsideDownCake"
+        versionCode = 831
+        versionName = "8.3.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         if (!isMinApi21Build) vectorDrawables.useSupportLibrary = true
         resourceConfigurations += listOf(
             "en", "fa", "ckb", "ar", "ur", "ps", "glk", "azb", "ja", "fr", "es", "tr", "kmr", "tg",
-            "ne", "zh-rCN"
+            "ne", "zh-rCN", "ru"
         )
         setProperty("archivesBaseName", "PersianCalendar-$versionName-$gitInfo")
     }
@@ -69,10 +72,7 @@ android {
             signingConfig = signingConfigs.getByName("nightly")
             versionNameSuffix = "-${defaultConfig.versionName}-$gitInfo-nightly"
             applicationIdSuffix = ".nightly"
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             isMinifyEnabled = true
             isShrinkResources = true
             multiDexEnabled = false
@@ -110,7 +110,7 @@ android {
         }
     }
 
-    packagingOptions {
+    packaging {
         resources.excludes += "DebugProbesKt.bin"
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
@@ -133,10 +133,11 @@ android {
         }
     }
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+    val javaVersion = JavaVersion.VERSION_17
 
+    compileOptions {
+        sourceCompatibility = javaVersion
+        targetCompatibility = javaVersion
         // isCoreLibraryDesugaringEnabled = true
         //   Actually could be useful as makes use of java.time.Duration possible instead
         //   java.util.concurrent.TimeUnit but needs multidex as it says:
@@ -146,7 +147,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = javaVersion.majorVersion
     }
 
     lint { disable += listOf("MissingTranslation") }
@@ -156,7 +157,7 @@ val minApi21Implementation by configurations
 
 dependencies {
     implementation("com.github.persian-calendar:calendar:1.2.2")
-    implementation("com.github.persian-calendar:praytimes:3.0.0")
+    implementation("com.github.persian-calendar:praytimes:3.1.2")
     implementation("com.github.persian-calendar:calculator:0827f0fbcad2ffa8559f05dcc82002f1dac1464b")
 
     // https://github.com/cosinekitty/astronomy/releases/tag/v2.1.0
@@ -168,42 +169,44 @@ dependencies {
     implementation("androidx.cardview:cardview:1.0.0")
     implementation("androidx.viewpager2:viewpager2:1.0.0")
     implementation("androidx.dynamicanimation:dynamicanimation:1.0.0")
-    implementation("com.google.android.material:material:1.9.0-beta01")
+    implementation("com.google.android.material:material:1.9.0")
 
     val navVersion = "2.5.1"
     implementation("androidx.navigation:navigation-fragment-ktx:$navVersion")
     implementation("androidx.navigation:navigation-ui-ktx:$navVersion")
     androidTestImplementation("androidx.navigation:navigation-testing:$navVersion")
 
-    implementation("androidx.core:core-ktx:1.9.0")
+    implementation("androidx.core:core-ktx:1.10.1")
     val fragmentVersion = "1.5.2"
     implementation("androidx.fragment:fragment-ktx:$fragmentVersion")
     debugImplementation("androidx.fragment:fragment-testing:$fragmentVersion")
-    implementation("androidx.activity:activity-ktx:1.6.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
 
     implementation("androidx.browser:browser:1.5.0")
 
-    implementation("androidx.work:work-runtime-ktx:2.8.0")
+    implementation("androidx.work:work-runtime-ktx:2.8.1")
 
-    val coroutinesVersion = "1.6.4"
+    val coroutinesVersion = "1.7.1"
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutinesVersion")
     androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:$coroutinesVersion")
-    implementation("org.jetbrains.kotlinx:kotlinx-html-jvm:0.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-html-jvm:0.8.1")
 
     implementation("com.google.openlocationcode:openlocationcode:1.0.4")
-    implementation("com.google.zxing:core:3.5.1")
+    testImplementation("com.google.zxing:core:3.5.1")
 
     // Only needed for debug builds for now, won't be needed for minApi21 builds either
     debugImplementation("androidx.multidex:multidex:2.0.1")
 
-    minApi21Implementation("androidx.activity:activity-compose:1.6.1")
-    val accompanistVersion = "0.28.0"
+    val activityVersion = "1.7.2"
+    implementation("androidx.activity:activity-ktx:$activityVersion")
+    minApi21Implementation("androidx.activity:activity-compose:$activityVersion")
+
+    val accompanistVersion = "0.30.1"
     minApi21Implementation("com.google.accompanist:accompanist-flowlayout:$accompanistVersion")
     minApi21Implementation("com.google.accompanist:accompanist-drawablepainter:$accompanistVersion")
     minApi21Implementation("com.google.accompanist:accompanist-themeadapter-material3:$accompanistVersion")
     minApi21Implementation("androidx.compose.ui:ui:$composeVersion")
-    minApi21Implementation("androidx.compose.material3:material3:1.1.0-alpha08")
+    minApi21Implementation("androidx.compose.material3:material3:1.1.0")
     minApi21Implementation("androidx.compose.ui:ui-tooling-preview:$composeVersion")
     if (isMinApi21Build) {
         implementation("androidx.compose.runtime:runtime:$composeVersion")
@@ -217,16 +220,16 @@ dependencies {
 
     testImplementation(kotlin("test"))
 
-    testImplementation("org.junit.platform:junit-platform-runner:1.9.2")
-    val junit5Version = "5.9.2"
+    testImplementation("org.junit.platform:junit-platform-runner:1.9.3")
+    val junit5Version = "5.9.3"
     testImplementation("org.junit.jupiter:junit-jupiter-api:$junit5Version")
     testImplementation("org.junit.jupiter:junit-jupiter-params:$junit5Version")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junit5Version")
 
-    testImplementation("org.mockito:mockito-core:5.2.0")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:4.1.0")
+    testImplementation("org.mockito:mockito-core:5.3.1")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.0.0")
 
-    testImplementation("com.google.truth:truth:1.1.3")
+    testImplementation("com.google.truth:truth:1.1.4")
 
     val androidTestVersion = "1.4.0"
     androidTestImplementation("androidx.test:runner:$androidTestVersion")

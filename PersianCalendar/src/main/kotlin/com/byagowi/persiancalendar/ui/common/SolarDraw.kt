@@ -12,6 +12,7 @@ import com.byagowi.persiancalendar.R
 import com.byagowi.persiancalendar.ui.utils.getCompatDrawable
 import com.google.android.material.animation.ArgbEvaluatorCompat
 import io.github.cosinekitty.astronomy.Ecliptic
+import io.github.cosinekitty.astronomy.Spherical
 import kotlin.math.abs
 import kotlin.math.cos
 
@@ -37,22 +38,23 @@ class SolarDraw(context: Context) {
     private val smallSunDrawable = context.getCompatDrawable(R.drawable.ic_sun_small)
 
     fun moon(
-        canvas: Canvas, sun: Ecliptic, moon: Ecliptic, cx: Float, cy: Float, r: Float,
+        canvas: Canvas, sun: Ecliptic, moon: Spherical, cx: Float, cy: Float, r: Float,
         angle: Float? = null, moonAltitude: Double? = null
     ) {
         val alpha =
             if (moonAltitude == null) 255 else (200 + moonAltitude.toInt() * 3).coerceIn(0, 255)
         moonShadowPaint.alpha = alpha
-        moonRect.set(cx - r, cy - r, cx + r, cy + r)
         moonDrawable.setBounds( // same as above
             (cx - r).toInt(), (cy - r).toInt(), (cx + r).toInt(), (cy + r).toInt()
         )
         moonDrawable.draw(canvas)
         moonDrawable.alpha = alpha
-        val phase = (moon.elon - sun.elon).let { it + if (it < 0) 360 else 0 }
+        val phase = (moon.lon - sun.elon).let { it + if (it < 0) 360 else 0 }
         canvas.withRotation(angle ?: if (phase < 180.0) 180f else 0f, cx, cy) {
-            val arcWidth = (cos(Math.toRadians(phase)) * r).toFloat()
-            moonOval.set(cx - abs(arcWidth), cy - r, cx + abs(arcWidth), cy + r)
+            val sr = r * .97f
+            val arcWidth = (cos(Math.toRadians(phase)) * sr).toFloat()
+            moonRect.set(cx - sr, cy - sr, cx + sr, cy + sr)
+            moonOval.set(cx - abs(arcWidth), cy - sr, cx + abs(arcWidth), cy + sr)
             ovalPath.rewind()
             ovalPath.arcTo(moonOval, 90f, if (arcWidth > 0) 180f else -180f)
             ovalPath.arcTo(moonRect, 270f, 180f)
@@ -87,7 +89,7 @@ class SolarDraw(context: Context) {
             (cx - r).toInt(), (cy - r).toInt(), (cx + r).toInt(), (cy + r).toInt()
         )
         earthDrawable.draw(canvas)
-        earthRect.inset(r / 10, r / 10)
+        earthRect.inset(r / 18, r / 18)
         val sunDegree = -sunEcliptic.elon.toFloat()
         canvas.drawArc(earthRect, sunDegree + 90f, 180f, true, earthShadowPaint)
     }

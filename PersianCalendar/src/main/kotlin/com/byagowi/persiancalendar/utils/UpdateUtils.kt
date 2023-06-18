@@ -20,6 +20,7 @@ import android.view.View
 import android.widget.RemoteViews
 import android.widget.Toast
 import androidx.annotation.AttrRes
+import androidx.annotation.CheckResult
 import androidx.annotation.ChecksSdkIntAtLeast
 import androidx.annotation.ColorInt
 import androidx.annotation.IdRes
@@ -27,6 +28,7 @@ import androidx.annotation.RequiresApi
 import androidx.annotation.StringRes
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.core.graphics.applyCanvas
 import androidx.core.graphics.createBitmap
@@ -58,10 +60,12 @@ import com.byagowi.persiancalendar.WidgetMap
 import com.byagowi.persiancalendar.WidgetMonthView
 import com.byagowi.persiancalendar.WidgetMoon
 import com.byagowi.persiancalendar.WidgetSunView
+import com.byagowi.persiancalendar.entities.CalendarEvent
 import com.byagowi.persiancalendar.entities.Clock
 import com.byagowi.persiancalendar.entities.DeviceCalendarEventsStore
 import com.byagowi.persiancalendar.entities.EventsStore
 import com.byagowi.persiancalendar.entities.Jdn
+import com.byagowi.persiancalendar.entities.Language
 import com.byagowi.persiancalendar.entities.Theme
 import com.byagowi.persiancalendar.global.calculationMethod
 import com.byagowi.persiancalendar.global.clockIn24
@@ -96,10 +100,14 @@ import com.google.android.material.shape.ShapeAppearanceModel
 import com.google.android.material.shape.ShapeAppearancePathProvider
 import io.github.persiancalendar.calendar.AbstractDate
 import io.github.persiancalendar.praytimes.PrayTimes
-import java.util.*
+import java.util.Date
+import java.util.GregorianCalendar
 import kotlin.math.min
 
 
+private val useDefaultPriority
+    get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && isNotifyDateOnLockScreen
+private val CHANNEL_ID get() = if (useDefaultPriority) 1003 else 1001
 private const val NOTIFICATION_ID = 1001
 private var pastDate: AbstractDate? = null
 private var deviceCalendarEvents: DeviceCalendarEventsStore = EventsStore.empty()
@@ -114,12 +122,15 @@ private var selectedWidgetBackgroundColor = DEFAULT_SELECTED_WIDGET_BACKGROUND_C
 private var prefersWidgetsDynamicColors = false
 
 // Is called from MainActivity to make sure is updated, probably should be removed however
-fun readAndStoreDeviceCalendarEventsOfTheDay(context: Context) = runCatching {
-    deviceCalendarEvents = context.readDayDeviceEvents(Jdn.today())
-}.onFailure(logException).let {}
+fun readAndStoreDeviceCalendarEventsOfTheDay(context: Context) {
+    runCatching { deviceCalendarEvents = context.readDayDeviceEvents(Jdn.today()) }
+        .onFailure(logException)
+}
 
 private var latestFiredUpdate = 0L
 
+// https://developer.android.com/about/versions/12/features/widgets#ensure-compatibility
+// Apply a round corner which is the default in Android 12
 // 16dp on pre-12, but Android 12 is more, is a bit ugly to have it as a global variable
 private var roundPixelSize = 0f
 
@@ -156,7 +167,7 @@ fun update(context: Context, updateDate: Boolean) {
     val prefs = context.appPrefs
 
     // region owghat calculations
-    val nowClock = Clock(Date().toJavaCalendar(forceLocalTime = true))
+    val nowClock = Clock(Date().toGregorianCalendar(forceLocalTime = true))
     val prayTimes = coordinates.value?.calculatePrayTimes()
 
     @StringRes
@@ -175,7 +186,7 @@ fun update(context: Context, updateDate: Boolean) {
             prefs.getBoolean(PREF_WIDGETS_PREFER_SYSTEM_COLORS, true)
 
     roundPixelSize =
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) 16.dp
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) 16 * context.resources.dp
         else context.resources.getDimensionPixelSize(
             android.R.dimen.system_app_widget_background_radius
         ).toFloat()
@@ -212,20 +223,24 @@ fun update(context: Context, updateDate: Boolean) {
     }
 
     // Notification
-    updateNotification(context, title, subtitle, jdn, date, owghat, now)
+    updateNotification(context, title, subtitle, jdn, date, owghat)
 }
 
 @StringRes
 private fun PrayTimes.getNextOwghatTimeId(current: Clock): Int {
     val clock = current.toHoursFraction()
+    val isJafari = calculationMethod.isJafari
     return when {
         fajr > clock -> R.string.fajr
         sunrise > clock -> R.string.sunrise
         dhuhr > clock -> R.string.dhuhr
-        !calculationMethod.isJafari && asr > clock -> R.string.asr
-        sunset > clock -> R.string.sunset
+        // No need to show Asr for Jafari calculation methods
+        !isJafari && asr > clock -> R.string.asr
+        // Sunset and Maghrib are different only in Jafari, skip if isn't Jafari
+        isJafari && sunset > clock -> R.string.sunset
         maghrib > clock -> R.string.maghrib
-        !calculationMethod.isJafari && isha > clock -> R.string.isha
+        // No need to show Isha for Jafari calculation methods
+        !isJafari && isha > clock -> R.string.isha
         midnight > clock -> R.string.midnight
         // TODO: this is today's, not tomorrow
         else -> R.string.fajr
@@ -240,7 +255,7 @@ fun AppWidgetManager.getWidgetSize(context: Context, widgetId: Int): Pair<Int, I
         else AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH,
         if (isPortrait) AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT
         else AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT
-    ).map { getAppWidgetOptions(widgetId).getInt(it, 0).dp.toInt() }
+    ).map { (getAppWidgetOptions(widgetId).getInt(it, 0) * context.resources.dp).toInt() }
     // Crashes terribly if is below zero, let's make sure that won't happen till we understand it better
     return if (width > 10 && height > 10) width to height else 250 to 250
 }
@@ -262,6 +277,21 @@ private inline fun <reified T> AppWidgetManager.updateFromRemoteViews(
             ).show()
         }
     }
+}
+
+private fun createRoundPath(width: Int, height: Int, roundSize: Float): Path {
+    val roundPath = Path()
+    val appearanceModel = ShapeAppearanceModel().withCornerSize(roundSize)
+    val rect = RectF(0f, 0f, width.toFloat(), height.toFloat())
+    ShapeAppearancePathProvider().calculatePath(appearanceModel, 1f, rect, roundPath)
+    return roundPath
+}
+
+private fun createRoundDrawable(@ColorInt color: Int, roundSize: Float): Drawable {
+    val shapeDrawable = MaterialShapeDrawable()
+    shapeDrawable.fillColor = ColorStateList.valueOf(color)
+    shapeDrawable.shapeAppearanceModel = ShapeAppearanceModel().withCornerSize(roundSize)
+    return shapeDrawable
 }
 
 private fun getWidgetBackgroundColor(
@@ -299,13 +329,6 @@ fun createAgeRemoteViews(context: Context, width: Int, height: Int, widgetId: In
     return remoteViews
 }
 
-private fun Path.writeRoundnessClip(width: Int, height: Int) {
-    ShapeAppearancePathProvider().calculatePath(
-        ShapeAppearanceModel().withCornerSize(roundPixelSize), 1f,
-        RectF(0f, 0f, width.toFloat(), height.toFloat()), this
-    )
-}
-
 private fun createSunViewRemoteViews(
     context: Context, width: Int, height: Int, jdn: Jdn, prayTimes: PrayTimes?
 ): RemoteViews {
@@ -318,11 +341,12 @@ private fun createSunViewRemoteViews(
     remoteViews.setRoundBackground(R.id.image_background, width, height)
     prepareViewForRendering(sunView, width, height)
     sunView.prayTimes = prayTimes
-    sunView.setTime(jdn.toJavaCalendar())
+    sunView.setTime(jdn.toGregorianCalendar())
     sunView.initiate()
     if (prefersWidgetsDynamicColors || // dynamic colors for widget need this round clipping anyway
         selectedWidgetBackgroundColor != DEFAULT_SELECTED_WIDGET_BACKGROUND_COLOR
-    ) sunView.clippingPath.writeRoundnessClip(width, height)
+    ) sunView.clippingPath = createRoundPath(width, height, roundPixelSize)
+    remoteViews.setTextColor(R.id.message, color)
     remoteViews.setTextViewTextOrHideIfEmpty(
         R.id.message,
         if (coordinates.value == null) context.getString(R.string.ask_user_to_set_location) else ""
@@ -348,7 +372,8 @@ private fun createMonthViewRemoteViews(
     context: Context, width: Int, height: Int, date: AbstractDate
 ): RemoteViews {
     val remoteViews = RemoteViews(context.packageName, R.layout.widget_month_view)
-    val monthView = MonthView(ContextThemeWrapper(context, Theme.getWidgetSuitableStyle(context)))
+    val widgetTheme = Theme.getWidgetSuitableStyle(context, prefersWidgetsDynamicColors)
+    val monthView = MonthView(ContextThemeWrapper(context, widgetTheme))
     val color = when {
         prefersWidgetsDynamicColors -> if (Theme.isNightMode(context)) Color.WHITE else Color.BLACK
         else -> selectedWidgetTextColor
@@ -381,11 +406,12 @@ private fun createMapRemoteViews(
         )
         else null
     val mapDraw = MapDraw(context, backgroundColor, foregroundColor)
+    mapDraw.markersScale = .75f
     mapDraw.updateMap(time, MapType.DayNight)
     val matrix = Matrix()
     matrix.setScale(size * 2f / mapDraw.mapWidth, size.toFloat() / mapDraw.mapHeight)
     val bitmap = createBitmap(size * 2, size).applyCanvas {
-        withClip(Path().also { it.writeRoundnessClip(size * 2, size) }) {
+        withClip(createRoundPath(size * 2, size, roundPixelSize)) {
             mapDraw.draw(this, matrix, true, null, false)
         }
     }
@@ -556,7 +582,7 @@ private fun create4x2RemoteViews(
 
     if (!enableClock) remoteViews.setTextViewText(R.id.textPlaceholder0_4x2, weekDayName)
     remoteViews.setTextViewText(R.id.textPlaceholder1_4x2, buildString {
-//        if (enableClock) append(jdn.dayOfWeekName + "\n")
+        if (enableClock) append(jdn.dayOfWeekName + "\n")
         append(formatDate(date, calendarNameInLinear = showOtherCalendars))
         if (showOtherCalendars) appendLine().append(dateStringOfOtherCalendars(jdn, "\n"))
     })
@@ -592,8 +618,8 @@ private fun create4x2RemoteViews(
         if (prefersWidgetsDynamicColors) {
             remoteViews.setDynamicTextColor(nextViewId, android.R.attr.colorAccent)
         } else {
-            val color = ContextThemeWrapper(context, Theme.getWidgetSuitableStyle(context))
-                .resolveColor(R.attr.colorHoliday)
+            val widgetTheme = Theme.getWidgetSuitableStyle(context, prefersWidgetsDynamicColors)
+            val color = ContextThemeWrapper(context, widgetTheme).resolveColor(R.attr.colorHoliday)
             remoteViews.setTextColor(nextViewId, color)
         }
 
@@ -647,11 +673,17 @@ private fun setEventsInWidget(
         insertRLM = context.resources.isRtl, addIsHoliday = false
     ) else ""
     remoteViews.setTextViewTextOrHideIfEmpty(eventsId, nonHolidays)
+
+    if (!prefersWidgetsDynamicColors) remoteViews.setInt(
+        holidaysId, "setTextColor",
+        ContextCompat.getColor(context, R.color.light_holiday)
+    )
 }
 
+private var latestPostedNotification: NotificationData? = null
+
 private fun updateNotification(
-    context: Context, title: String, subtitle: String, jdn: Jdn, date: AbstractDate, owghat: String,
-    time: Long
+    context: Context, title: String, subtitle: String, jdn: Jdn, date: AbstractDate, owghat: String
 ) {
     if (!isNotifyDate) {
         if (enableWorkManager)
@@ -659,22 +691,65 @@ private fun updateNotification(
         return
     }
 
-    val notificationManager = context.getSystemService<NotificationManager>()
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val importance = NotificationManager.IMPORTANCE_LOW
-        val channel = NotificationChannel(
-            NOTIFICATION_ID.toString(),
-            context.getString(R.string.app_name), importance
-        )
-        channel.setShowBadge(false)
-        notificationManager?.createNotificationChannel(channel)
+    val notificationData = NotificationData(
+        title = title, subtitle = subtitle, jdn = jdn, date = date, owghat = owghat,
+        isRtl = context.resources.isRtl,
+        events = eventsRepository?.getEvents(jdn, deviceCalendarEvents) ?: emptyList(),
+        isTalkBackEnabled = isTalkBackEnabled,
+        isHighTextContrastEnabled = isHighTextContrastEnabled,
+        isNotifyDateOnLockScreen = isNotifyDateOnLockScreen,
+        deviceCalendarEventsList = deviceCalendarEvents.getAllEvents(),
+        whatToShowOnWidgets = whatToShowOnWidgets,
+        spacedComma = spacedComma,
+        language = language,
+    )
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || // always update as complains in 8.3.0
+        latestPostedNotification != notificationData
+    ) {
+        if (notificationData.post(context))
+            latestPostedNotification = notificationData
     }
+}
 
-    // Prepend a right-to-left mark character to Android with sane text rendering stack
-    // to resolve a bug seems some Samsung devices have with characters with weak direction,
-    // digits being at the first of string on
-    val toPrepend =
-        if (context.resources.isRtl && Build.VERSION.SDK_INT < Build.VERSION_CODES.N) RLM else ""
+private data class NotificationData(
+    private val title: String,
+    private val subtitle: String,
+    private val jdn: Jdn,
+    private val date: AbstractDate,
+    private val owghat: String,
+    private val isRtl: Boolean,
+    private val events: List<CalendarEvent<*>>,
+    private val isTalkBackEnabled: Boolean,
+    private val isHighTextContrastEnabled: Boolean,
+    private val isNotifyDateOnLockScreen: Boolean,
+    private val deviceCalendarEventsList: List<CalendarEvent.DeviceCalendarEvent>,
+    private val whatToShowOnWidgets: Set<String>,
+    private val spacedComma: String,
+    private val language: Language,
+) {
+    @CheckResult
+    fun post(context: Context): Boolean {
+        val notificationManager = context.getSystemService<NotificationManager>()
+        if (enableWorkManager && notificationManager == null) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID.toString(),
+                context.getString(R.string.app_name),
+                if (useDefaultPriority) NotificationManager.IMPORTANCE_DEFAULT
+                else NotificationManager.IMPORTANCE_LOW
+            )
+            if (useDefaultPriority) {
+                channel.setSound(null, null)
+                channel.enableVibration(false)
+            }
+            channel.setShowBadge(false)
+            notificationManager?.createNotificationChannel(channel)
+        }
+
+        // Prepend a right-to-left mark character to Android with sane text rendering stack
+        // to resolve a bug seems some Samsung devices have with characters with weak direction,
+        // digits being at the first of string on
+        val toPrepend = if (isRtl && Build.VERSION.SDK_INT < Build.VERSION_CODES.N) RLM else ""
 
     val builder = NotificationCompat.Builder(context, NOTIFICATION_ID.toString())
         .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -703,72 +778,73 @@ private fun updateNotification(
 ////            }
 //        )
 
-    // Dynamic small icon generator, most of the times disabled as it needs API 23 and
-    // we need to have the other path anyway
-    if (language.isNepali && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        val icon = IconCompat.createWithBitmap(createStatusIcon(date.dayOfMonth))
-        builder.setSmallIcon(icon)
-    } else {
-        builder.setSmallIcon(getDayIconResource(date.dayOfMonth))
-    }
-
-    // Night mode doesn't like our custom notification in Samsung and HTC One UI
-    val shouldDisableCustomNotification = when (Build.BRAND) {
-        "samsung", "htc" -> Theme.isNightMode(context)
-        else -> false
-    }
-
-    if (!isTalkBackEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-        val events = eventsRepository?.getEvents(jdn, deviceCalendarEvents) ?: emptyList()
-        val holidays = getEventsTitle(
-            events, holiday = true,
-            compact = true, showDeviceCalendarEvents = true, insertRLM = context.resources.isRtl,
-            addIsHoliday = shouldDisableCustomNotification || isHighTextContrastEnabled
-        )
-
-        val nonHolidays = if (NON_HOLIDAYS_EVENTS_KEY in whatToShowOnWidgets) getEventsTitle(
-            events, holiday = false,
-            compact = true, showDeviceCalendarEvents = true, insertRLM = context.resources.isRtl,
-            addIsHoliday = false
-        ) else ""
-
-        val notificationOwghat = if (OWGHAT_KEY in whatToShowOnWidgets) owghat else ""
-
-        if (shouldDisableCustomNotification) {
-            val content = listOf(subtitle, holidays.trim(), nonHolidays, notificationOwghat)
-                .filter { it.isNotBlank() }.joinToString("\n")
-            builder.setStyle(NotificationCompat.BigTextStyle().bigText(content))
+        // Dynamic small icon generator, most of the times disabled as it needs API 23 and
+        // we need to have the other path anyway
+        if (language.isNepali && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val icon = IconCompat.createWithBitmap(createStatusIcon(date.dayOfMonth))
+            builder.setSmallIcon(icon)
         } else {
-            builder.setCustomContentView(RemoteViews(
-                context.packageName, R.layout.custom_notification
-            ).also {
-                it.setDirection(R.id.custom_notification_root, context)
-                it.setTextViewText(R.id.title, title)
-                it.setTextViewText(R.id.body, subtitle)
-            })
+            builder.setSmallIcon(getDayIconResource(date.dayOfMonth))
+        }
 
-            if (listOf(holidays, nonHolidays, notificationOwghat).any { it.isNotBlank() })
-                builder.setCustomBigContentView(RemoteViews(
-                    context.packageName, R.layout.custom_notification_big
+        // Night mode doesn't like our custom notification in Samsung and HTC One UI
+        val shouldDisableCustomNotification = when (Build.BRAND) {
+            "samsung", "htc" -> Theme.isNightMode(context)
+            else -> false
+        }
+
+        if (!isTalkBackEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val holidays = getEventsTitle(
+                events, holiday = true,
+                compact = true, showDeviceCalendarEvents = true, insertRLM = isRtl,
+                addIsHoliday = shouldDisableCustomNotification || isHighTextContrastEnabled
+            )
+
+            val nonHolidays = if (NON_HOLIDAYS_EVENTS_KEY in whatToShowOnWidgets) getEventsTitle(
+                events, holiday = false,
+                compact = true, showDeviceCalendarEvents = true, insertRLM = isRtl,
+                addIsHoliday = false
+            ) else ""
+
+            val notificationOwghat = if (OWGHAT_KEY in whatToShowOnWidgets) owghat else ""
+
+            if (shouldDisableCustomNotification) {
+                val content = listOf(subtitle, holidays.trim(), nonHolidays, notificationOwghat)
+                    .filter { it.isNotBlank() }.joinToString("\n")
+                builder.setStyle(NotificationCompat.BigTextStyle().bigText(content))
+            } else {
+                builder.setCustomContentView(RemoteViews(
+                    context.packageName, R.layout.custom_notification
                 ).also {
                     it.setDirection(R.id.custom_notification_root, context)
                     it.setTextViewText(R.id.title, title)
-                    it.setTextViewTextOrHideIfEmpty(R.id.body, subtitle)
-                    it.setTextViewTextOrHideIfEmpty(R.id.holidays, holidays)
-                    it.setTextViewTextOrHideIfEmpty(R.id.nonholidays, nonHolidays)
-                    it.setTextViewTextOrHideIfEmpty(R.id.owghat, notificationOwghat)
+                    it.setTextViewText(R.id.body, subtitle)
                 })
 
-            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+                if (listOf(holidays, nonHolidays, notificationOwghat).any { it.isNotBlank() })
+                    builder.setCustomBigContentView(RemoteViews(
+                        context.packageName, R.layout.custom_notification_big
+                    ).also {
+                        it.setDirection(R.id.custom_notification_root, context)
+                        it.setTextViewText(R.id.title, title)
+                        it.setTextViewTextOrHideIfEmpty(R.id.body, subtitle)
+                        it.setTextViewTextOrHideIfEmpty(R.id.holidays, holidays)
+                        it.setTextViewTextOrHideIfEmpty(R.id.nonholidays, nonHolidays)
+                        it.setTextViewTextOrHideIfEmpty(R.id.owghat, notificationOwghat)
+                    })
+
+                builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            }
         }
+
+        if (BuildConfig.DEVELOPMENT) builder.setWhen(System.currentTimeMillis())
+
+        if (enableWorkManager) notificationManager?.notify(NOTIFICATION_ID, builder.build())
+        else context.runCatching {
+            ApplicationService.getInstance()?.startForeground(NOTIFICATION_ID, builder.build())
+        }.onFailure(logException)
+        return true
     }
-
-    if (BuildConfig.DEVELOPMENT) builder.setWhen(time)
-
-    if (enableWorkManager) notificationManager?.notify(NOTIFICATION_ID, builder.build())
-    else context.runCatching {
-        ApplicationService.getInstance()?.startForeground(NOTIFICATION_ID, builder.build())
-    }.onFailure(logException)
 }
 
 private fun RemoteViews.setRoundBackground(
@@ -778,16 +854,10 @@ private fun RemoteViews.setRoundBackground(
     when {
         prefersWidgetsDynamicColors -> setImageViewResource(viewId, R.drawable.widget_background)
         color == DEFAULT_SELECTED_WIDGET_BACKGROUND_COLOR -> setImageViewResource(viewId, 0)
-        else -> setImageViewBitmap(viewId, createRoundDrawable(color).toBitmap(width, height))
-    }
-}
-
-private fun createRoundDrawable(@ColorInt color: Int): Drawable {
-    return MaterialShapeDrawable().also {
-        it.fillColor = ColorStateList.valueOf(color)
-        // https://developer.android.com/about/versions/12/features/widgets#ensure-compatibility
-        // Apply a round corner which is the default in Android 12
-        it.shapeAppearanceModel = ShapeAppearanceModel().withCornerSize(roundPixelSize)
+        else -> {
+            val roundBackground = createRoundDrawable(color, roundPixelSize).toBitmap(width, height)
+            setImageViewBitmap(viewId, roundBackground)
+        }
     }
 }
 
